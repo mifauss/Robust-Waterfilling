@@ -13,7 +13,6 @@ h = [8 1 2 7];  % vector of channel gain $h_i$
 g = P*h.^2;     % vector of channel strength $\gamma_i$
 
 %% Coefficients of MMSE bounds for Generalized Gaussian distribution
-% Si ~ G(alpha,beta) 
 alphaf = @(beta) sqrt(gamma(1/beta)/gamma(3/beta)); % s.t. $E[S_i^2]=1$
 wv = ones(pn,1); % coef vector of LMMSE bound
 

@@ -1,24 +1,32 @@
-function [ eta,pv ] = waterfilling( g )
+function [ eta,pv ] = waterfilling( g, a, b )
 %   waterfilling
 %   g: 1xk, channel gains gamma_i
+%   a and bc: coefficient of MMSE bound $b \lmmse_a(snr)$
 
 
 [pn,k] = size(g);
 
-gs = sort(g,2,'descend');
+v = g.*a.*b;
+[Vs,I] = sort(v,2,'descend');
 
-Hext = [gs 0];
+for j = 1:k, Bs(:,j) = b(:,I(:,j)); end
+for j = 1:k, Hs(:,j) = g(:,I(:,j)).*a(:,I(:,j)); end
+
+Hext = [Hs -1];
 
 eta = inf;
-for i = 1:k
-    etai = i/(1+sum(1./gs(1:i)));
-    if etai > Hext(i+1) && etai <= gs(i)
+i = 1;
+while i<=k
+    etai = (sum(Bs(1:i)))/(1+sum(1./Hs(1:i)));
+    if etai > Hext(i+1) && etai <= Hs(i)
         eta = etai;
+        i = k+1;
+    else
+        i = i+1;
     end
 end
 
-fiv = 1/eta - 1./g;
-pv = max(0,fiv);
+pv = max(0, b./eta - 1./(g.*a));
 
 end
 

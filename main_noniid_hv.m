@@ -7,10 +7,11 @@ k = 4;      % number of channels, i = 1,...,k
 s0 = 1; % E[si^2]=1
 P = 10; % power constraint
 betav = [1, 2, 4];  % vector of $\beta_i$, i=1,...,k-1, and $\beta_k = \infty$
-hv = 0.5:0.05:2;    % channel gain scaler
+hv = 10:10:100;    % channel gain scaler
+[px,pn] = size(hv);
 
 %% Coefficients of MMSE bounds 
-wv = ones(1,k);% LMMSE bound 1/(1+snr)
+wv = ones(pn,k);% LMMSE bound 1/(1+snr)
 
 % Generalized Gaussian distribution
 alphaf = @(beta) sqrt(gamma(1/beta)/gamma(3/beta)); % s.t. $E[S_i^2]=1$
@@ -29,14 +30,13 @@ for bn = 1:(k-1)
     epsG = get_KL_div_GG(alpha, beta, alpha0, beta0);
         
     % mmse lower bound
-    sX_min = -real(lambertw(0,-exp(-(1+2*epsG)))*s0);
-    %     lb = sX_min*sN/(sX_min + sN); % bound
-    lv(bn) = sX_min;   % coe
+    lv(:,bn) = s0*ones(pn,1);   % coe
+    clv(:,bn) = -real(lambertw(0,-exp(-(1+2*epsG))))*ones(pn,1);
     
     % mmse upper bound
     sX_max = -real(lambertw(-1,-exp(-(1+2*epsG)))*s0);
     %     ub = sX_max*sN/(sX_max + sN);
-    uv(bn) = sX_max;
+    uv(:,bn) = sX_max*ones(pn,1);
 
 end
 
@@ -48,75 +48,52 @@ R = 1;  % radius, s.t. E[Si^2]=1
 epsU = get_KL_div_U(K); % KL ball radius: epsilon
 
 % mmse lower bound
-sX_min = -real(lambertw(0,-exp(-(1+2*epsU/K)))*s0);
-lv(k) = sX_min;   % coe
+lv(:,k) = s0*ones(pn,1);   % coe
+cl = -real(lambertw(0,-exp(-(1+2*epsU))));
+clv(:,k) = cl*ones(pn,1);
 
 % mmse upper bound
 sX_max = -real(lambertw(-1,-exp(-(1+2*epsU/K)))*s0);
-uv(k) = sX_max;
+uv(:,k) = sX_max*ones(pn,1);
 
 
 %% RPA
-[px,pn] = size(hv);
 for cnt = 1:pn
     h = hv(cnt).*ones(1,k); % identical channel gains, $h_i = h$
     g = P*h.^2;             % $\gamma_i$: strength of the channels
     gv(cnt,:) = g;
     
+    % Mismatched waterfilling: using LMMSE bound, coe=1
+    [etaw(cnt),pw(cnt,:)] = waterfilling(g,wv(cnt,:),ones(1,k));
+    
     % RPA
-    [etaw(cnt),pw(cnt,:)] = waterfilling(g.*wv);% Mismatched waterfilling: using LMMSE bound
-    [etal(cnt),pl(cnt,:)] = waterfilling(g.*lv);
-    [etau(cnt),pu(cnt,:)] = waterfilling(g.*uv);
+    [etal(cnt),pl(cnt,:)] = waterfilling(g,lv(cnt,:),clv(cnt,:));
+    [etalm(cnt),plm(cnt,:)] = waterfilling(g,lv(cnt,:),ones(1,k));
+    [etau(cnt),pu(cnt,:)] = waterfilling(g,uv(cnt,:),ones(1,k));
     
 end
 
-%% plot water level & floor
-al = {'MM';'RL';'RU'};
-for cnt=1:pn
-    if cnt == 1 || cnt == pn
-        wlw = 1/etaw(cnt)*ones(1,k); %water level
-        wll = 1/ etal(cnt)*ones(1,k);
-        wlu = 1/ etau(cnt)*ones(1,k);
-        fw = 1/etaw(cnt) - pw(cnt,:); %floor surface
-        fl = 1/etal(cnt) - pl(cnt,:);
-        fu = 1/etau(cnt) - pu(cnt,:);
-        figure
-        b(1,:) = bar([wlw; wll; wlu],1,'FaceColor',[1 1 1],'EdgeColor',[0 .9 .9],'LineWidth',1.5,'Displayname','power p_i');
-        hold on
-        b(2,:) = bar([fw; fl; fu],1,'FaceColor',[.6 .6 .6],'Displayname','noise 1/(gamma_i x_i)');
-        legend(b(:,1),'location','northwest')
-        set(gca,'xticklabel',al)
-    end
-end
-
-%% plot water-level v.s. beta
-figure
-hold on
-plot(nv,1./etaw,':k')
-plot(nv,1./etal,'-k')
-plot(nv,1./etau,'-.k')
-xlabel('Channel gains h_i');
-ylabel('Water level 1/eta');
-legend('1/eta_w','1/eta_l','1/eta_u');
-legend('location','south');
     
-%% plot difference of water-levels and c_W v.s. h_i
-cw = sum((ones(pn,1)*(1./lv - 1./uv))./gv,2);% upper bound of the difference between water levels
+%% plot quotient of water-levels and c_W v.s. beta
+cWwl = max(wv./clv,[],2); 
+cWul = max(uv./clv,[],2);
 
 figure
 hold on
-plot(hv,cw,'-r')
-plot(hv,1./etal-1./etaw,':k')
-plot(hv,1./etal-1./etau,'-.k')
-xlabel('h_i');
-ylabel('Difference between water levels');
-legend('c_W','1./eta_l-1/eta_w','1/eta_l-1/eta_u');
+plot(hv,cWwl,'-k','LineWidth',1.2)
+plot(hv,cWul,'--k','LineWidth',1.2)
+plot(hv,etaw./etal,'-k')
+plot(hv,etau./etal,'--k')
+xlabel('beta');
+ylabel('Quotient between water levels');
+legend('c_W for eta_w/eta_l','c_W for eta_u/eta_l','eta_w/eta_l','eta_u/eta_l');
 legend('location','south');
+
 
 %% plot ralative rate w.r.t. Rw, the achievable rate of legacy waterfilling
-Rw = sum_mi_niidGG(betav,hv,P*pw);
-Rl = sum_mi_niidGG(betav,hv,P*pl);
-Ru = sum_mi_niidGG(betav,hv,P*pu);
+Rw = sum_mi_niidGG(betav,hv'*ones(1,k),P*pw);
+Rl = sum_mi_niidGG(betav,hv'*ones(1,k),P*pl);
+Ru = sum_mi_niidGG(betav,hv'*ones(1,k),P*pu);
 
 figure
 hold on
@@ -128,28 +105,17 @@ ylabel('Relative achievable rate r(p)');
 legend('r(p_w)','r(p_l)','r(p_u)');
 legend('location','south');
 
+
 %% plot c_R and difference between R(p) v.s. h_i
-crul = 1/2/k*sum(log2(uv./lv))*ones(1,pn);
-crwl = 1/2/k*sum(log2(wv./lv))*ones(1,pn);
+crul = log(cWul)/2;    % using the upper and lower KL-ball bounds
+crwl = log(cWwl)/2;    % using LMMSE bound and lower KL-ball bound
 
 figure
 hold on
-plot(hv,crul','-.k')
-plot(hv,crwl','-k')
+plot(hv,crul','-k','LineWidth',1.2)
+plot(hv,crwl','-.k','LineWidth',1.2)
+plot(hv,abs(Ru-Rl),'-k')
+plot(hv,abs(Rw-Rl),'-.k')
 xlabel('beta');
-ylabel('c_R');
-legend('lu','wl');
-
-% an upper bound of the optimal rate
-Rub = apprx_mi(ones(pn,1)*wv, gv, pw);
-
-figure
-hold on
-plot(hv,crwl,'-k')
-plot(hv,Rub-Rl,'--k')
-xlabel('h_i');
-ylabel('Difference between achievable rates R_{ub}-R(p)');
-legend('c_R','R_{ub}-R(p_l)');
-legend('location','south');
-
-
+ylabel('Difference between achievable rates');
+legend('c_R for R_{p_u}-R(p_l)','c_R for R_{p_w}-R(p_l)','|R_{u}-R(p_l)|','|R_{w}-R(p_l)|');

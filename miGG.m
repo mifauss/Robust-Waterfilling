@@ -22,7 +22,7 @@ fy = zeros(1,K);
 
 
 % number of random samples in MonteCarlo
-N = 200000;
+N = 10000;
 
 
 % Normalization Constants for GG

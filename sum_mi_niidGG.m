@@ -1,6 +1,6 @@
 function R = sum_mi_niidGG(beta, h, p)
 % mutual information of the parallel channels
-% beta: parameter of GG dist
+% beta: 1 x k, parameter of GG dist
 % h: pn x k, channel gains h_i
 % p: pn x k, power p_i * P
 
